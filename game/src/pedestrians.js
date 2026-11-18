@@ -107,7 +107,7 @@ export class Pedestrian {
     let speed = this.speed;
     if (this.fleeTimer > 0) {
       this.fleeTimer -= dt;
-      speed = 4.6;
+      speed = 5.0; // iter1: fleeing is a touch faster now the helicopter scatters crowds too
       if (this.fleeFrom) {
         // Flee direction d = position - threat; with forward = (-sin h, -cos h),
         // the heading that runs straight away from the threat is atan2(-dx, -dz).
@@ -172,6 +172,11 @@ export class PedestrianManager {
     for (const ped of this.peds) {
       if (Math.hypot(ped.x - fromPos.x, ped.z - fromPos.z) < radius) ped.scare(fromPos, seconds);
     }
+  }
+
+  /** Rotor wash: everyone under the helicopter's beam scatters (helicopter.js). */
+  scatterFrom(fromPos, radius) {
+    this.scareAll(fromPos, radius, 3);
   }
 
   update(dt, game) {

@@ -1,8 +1,10 @@
 // Neon Tides — the Port Vireo Police Department: wanted stars and response.
 // Crimes reported to addCrime() raise the 0–5 star wanted level. Interceptor
 // cars spawn in proportion to the stars, chase and ram the player; at 3+ stars
-// officers on foot join and shoot. If officers pin the player (close and slow)
-// the bust meter fills toward BUSTED. Staying unseen decays the stars.
+// officers on foot join and shoot; at 4–5 stars the helicopter (helicopter.js)
+// circles overhead and freezes wanted decay while it watches. If officers pin
+// the player (close and slow) the bust meter fills toward BUSTED. Staying
+// unseen decays the stars.
 
 import * as THREE from '../vendor/three/three.module.min.js';
 import {
@@ -150,8 +152,9 @@ export class PoliceManager {
       if (d < nearestPin) nearestPin = d;
       this.updateOfficer(o, dt, playerPos);
     }
-    // Wanted decay while unseen.
-    if (this.heat > 0) {
+    // Wanted decay while unseen — frozen while the helicopter is overhead
+    // (iter1): the air unit keeps the stars pinned until it leaves.
+    if (this.heat > 0 && !(this.game.helicopter && this.game.helicopter.active)) {
       if (this.seenByPolice) this.unseenTimer = 0;
       else {
         this.unseenTimer += dt;

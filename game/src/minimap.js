@@ -1,6 +1,8 @@
 // Neon Tides — canvas 2D minimap, north-up: ocean and beach to the east,
 // the road grid, building blocks, the player arrow, the mission marker,
-// police blips (red/blue) and traffic dots. Drawn every other frame.
+// police blips (red/blue), traffic dots, and the iter1 blips: neon caches
+// (cyan), taxi fares (green), the helicopter (white) and SMG crates (orange).
+// Drawn every other frame.
 
 import { BLOCK_PITCH, GRID_MIN, GRID_MAX, CITY_EDGE, roadCoord } from './config.js';
 
@@ -66,6 +68,17 @@ export class Minimap {
     for (const car of game.traffic.cars) dot(car.x, car.z, '#aab4c4', 2);
     for (const car of game.police.cars) dot(car.x, car.z, (this.frame >> 2) % 2 ? '#ff4455' : '#4488ff', 3);
     for (const o of game.police.officers) dot(o.x, o.z, '#ff8899', 2);
+    // Iter1 blips: uncollected neon caches, the active taxi fare, SMG crates.
+    if (game.activities) {
+      for (const cache of game.activities.caches) if (!cache.taken) dot(cache.x, cache.z, '#00e5ff', 2.5);
+      if (game.activities.fareState === 'waiting' && game.activities.farePickup) dot(game.activities.farePickup.x, game.activities.farePickup.z, '#3ddc84', 3.5);
+      if (game.activities.fareState === 'riding' && game.activities.fareDest) dot(game.activities.fareDest.x, game.activities.fareDest.z, '#3ddc84', 3.5);
+    }
+    if (game.weapons) for (const crate of game.weapons.crates) if (!crate.taken) dot(crate.x, crate.z, '#ff8c42', 2.5);
+    if (game.helicopter && game.helicopter.active) {
+      const hp = game.helicopter.pos;
+      dot(hp.x, hp.z, '#ffffff', 4);
+    }
     // Mission marker.
     const step = game.missions.step;
     if (step) {

@@ -1,10 +1,11 @@
-// Neon Tides — localStorage save: cash, mission progress, player position.
-// Wanted level is never saved: a loaded game always starts clean, by design.
+// Neon Tides — localStorage save: cash, mission progress, player position,
+// neon caches found and the current weapon (iter1). Wanted level is never
+// saved: a loaded game always starts clean, by design.
 
 import { SAVE_KEY } from './config.js';
 
 export function defaultSave() {
-  return { cash: 250, missionIndex: 0, missionsDone: false, x: -140, z: 150, heading: 0.6, totalEarned: 0 };
+  return { cash: 250, missionIndex: 0, missionsDone: false, x: -140, z: 150, heading: 0.6, totalEarned: 0, cachesCollected: 0, weaponId: 'pistol' };
 }
 
 export function loadSave() {

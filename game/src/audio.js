@@ -12,6 +12,9 @@ export class AudioEngine {
     this.sirenOsc = null;
     this.sirenGain = null;
     this.sirenTimer = 0;
+    this.rotorOsc = null; // police helicopter rotor thump (helicopter.js)
+    this.rotorGain = null;
+    this.rotorTimer = 0;
     this.started = false;
   }
 
@@ -120,6 +123,32 @@ export class AudioEngine {
     }
   }
 
+  /** Rotor thump while the police helicopter is overhead; silent otherwise. */
+  setRotor(on, dt) {
+    if (!this.started) return;
+    if (on && !this.rotorOsc) {
+      this.rotorOsc = this.ctx.createOscillator();
+      this.rotorOsc.type = 'sawtooth';
+      this.rotorOsc.frequency.value = 38;
+      this.rotorGain = this.ctx.createGain();
+      this.rotorGain.gain.value = 0.022;
+      this.rotorOsc.connect(this.rotorGain);
+      this.rotorGain.connect(this.master);
+      this.rotorOsc.start();
+    }
+    if (!on && this.rotorOsc) {
+      this.rotorOsc.stop();
+      this.rotorOsc = null;
+      this.rotorGain = null;
+      return;
+    }
+    if (this.rotorOsc) {
+      // Slow chop: the blade beat rises and falls a few times a second.
+      this.rotorTimer += dt;
+      this.rotorOsc.frequency.value = 34 + Math.sin(this.rotorTimer * 21) * 9;
+    }
+  }
+
   noiseBuffer(seconds) {
     const len = Math.floor(this.ctx.sampleRate * seconds);
     const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -181,6 +210,9 @@ export class AudioEngine {
   }
 
   pickup() { this.blip(660, 0.12, 'sine', 0.18); setTimeout(() => this.blip(990, 0.16, 'sine', 0.18), 70); }
+
+  /** Brighter two-note chime for a neon cache or a fare pickup (activities.js). */
+  cacheChime() { this.blip(880, 0.1, 'triangle', 0.16); setTimeout(() => this.blip(1318, 0.18, 'triangle', 0.16), 80); }
 
   success() {
     const seq = [523.25, 659.25, 783.99, 1046.5];

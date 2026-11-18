@@ -30,6 +30,24 @@ export const PISTOL_RESERVE_START = 60;
 export const PISTOL_FIRE_MS = 190;
 export const PISTOL_RANGE = 90;
 
+// Iter1: the SMG (see weapons.js) — less damage per bullet than the pistol,
+// but a 30-round mag and roughly double the fire rate, so it wins up close.
+export const SMG_DAMAGE = 22;
+export const SMG_MAGAZINE = 30;
+export const SMG_RESERVE_START = 90;
+export const SMG_FIRE_MS = 95;
+export const SMG_RANGE = 80;
+
+// Iter1: police helicopter (helicopter.js) and side activities (activities.js).
+export const HELI_MIN_STARS = 4; // stars needed for the air unit to launch
+export const HELI_HEIGHT = 40; // metres above the ground
+export const HELI_RADIUS = 26; // circle radius around the player
+export const CACHE_REWARD = 150; // dollars per neon cache
+export const CACHE_TOTAL = 10;
+export const FARE_TIME_LIMIT = 75; // seconds to deliver a taxi fare
+export const FARE_PAY_MIN = 200;
+export const FARE_PAY_MAX = 400;
+
 export const TRAFFIC_COUNT = 14;
 export const PARKED_COUNT = 16;
 export const PEDESTRIAN_COUNT = 26;

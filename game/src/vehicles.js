@@ -1,6 +1,8 @@
 // Neon Tides — original low-poly cars and arcade driving physics.
 // A car is a box body + cabin + four cylinder wheels + headlights; variants are
-// coupe, hatch, truck and the black-and-white Port Vireo police interceptor.
+// coupe, hatch, truck, muscle (iter1: wide body + spoiler) and the
+// black-and-white Port Vireo police interceptor. A car whose health hits zero
+// becomes a wreck (iter1): darkened, stopped, undrivable, a solid obstacle.
 // Physics is arcade: throttle/brake/reverse, speed-sensitive steering, handbrake
 // drift, building and car collision with a crash impulse the game turns into
 // screen shake, sound and wanted heat.
@@ -13,6 +15,8 @@ export const CAR_KINDS = {
   coupe: { w: 1.9, l: 4.4, h: 0.62, cabinL: 2.0, topSpeed: 1.0 },
   hatch: { w: 1.85, l: 3.9, h: 0.72, cabinL: 2.3, topSpeed: 0.85 },
   truck: { w: 2.1, l: 5.4, h: 0.95, cabinL: 1.4, topSpeed: 0.72 },
+  // Iter1: the muscle car — wider body, rear spoiler, near-coupe top speed.
+  muscle: { w: 2.05, l: 4.7, h: 0.58, cabinL: 1.9, topSpeed: 0.97 },
   police: { w: 1.95, l: 4.6, h: 0.66, cabinL: 2.1, topSpeed: 1.06 },
 };
 
@@ -32,6 +36,20 @@ export function createCarMesh(kind, colorHex) {
     const bed = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.94, 0.5, 2.6), dark);
     bed.position.set(0, body.position.y + 0.3, 1.2);
     group.add(bed);
+  }
+  if (kind === 'muscle') {
+    // Rear spoiler on two struts, plus a hood scoop for the muscle look.
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.94, 0.1, 0.42), dark);
+    wing.position.set(0, body.position.y + spec.h / 2 + 0.42, spec.l / 2 - 0.35);
+    group.add(wing);
+    for (const side of [-1, 1]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.42, 0.1), dark);
+      strut.position.set(side * spec.w * 0.36, body.position.y + spec.h / 2 + 0.2, spec.l / 2 - 0.35);
+      group.add(strut);
+    }
+    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.9), dark);
+    scoop.position.set(0, body.position.y + spec.h / 2 + 0.06, -spec.l / 2 + 1.1);
+    group.add(scoop);
   }
   if (kind === 'police') {
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(spec.w + 0.04, 0.3, spec.l * 0.98), dark);
@@ -86,6 +104,7 @@ export class Vehicle {
     this.speed = 0;
     this.steer = 0;
     this.health = 100;
+    this.wrecked = false; // iter1: health 0 turns a car into an undrivable wreck
     this.driver = null; // 'traffic' | 'police' | 'player' | null (parked)
     this.occupied = false;
     this.crashImpulse = 0; // set on impact, consumed by the game for shake/sound
@@ -106,11 +125,24 @@ export class Vehicle {
     }
   }
 
+  /** A wrecked car stops dead, darkens, and can never be driven again. */
+  makeWreck() {
+    if (this.wrecked) return;
+    this.wrecked = true;
+    this.speed = 0;
+    this.driver = this.driver === 'player' ? 'player' : null;
+    this.mesh.traverse((node) => {
+      if (node.isMesh && node.material && node.material.color) node.material.color.multiplyScalar(0.45);
+    });
+  }
+
   /**
    * Arcade step. input: {throttle -1..1, steer -1..1, handbrake bool}.
    * Returns nothing; collisions resolve against buildings and world bounds.
+   * A wreck never moves again, whatever input it is given.
    */
   drive(dt, input, topSpeedScale) {
+    if (this.wrecked) { this.speed = 0; return; }
     const spec = this.spec;
     const maxSpeed = CAR_MAX_SPEED * spec.topSpeed * (topSpeedScale || 1);
     const accel = 15;
@@ -152,8 +184,23 @@ export class Vehicle {
     this.updateMesh();
   }
 
-  /** Simple separation from another car; returns impact speed or 0. */
+  /** Simple separation from another car; returns impact speed or 0. Wrecks
+   *  are solid obstacles: they neither move nor take further damage. */
   collideWith(other) {
+    if (this.wrecked || other.wrecked) {
+      const dx = this.x - other.x;
+      const dz = this.z - other.z;
+      const d2 = dx * dx + dz * dz;
+      const min = 3.1;
+      if (d2 > min * min || d2 < 0.0001) return 0;
+      const d = Math.sqrt(d2);
+      const push = (min - d) / 2;
+      const ux = dx / d;
+      const uz = dz / d;
+      if (!this.wrecked) { this.mesh.position.x += ux * push; this.mesh.position.z += uz * push; this.speed *= 0.3; }
+      if (!other.wrecked) { other.mesh.position.x -= ux * push; other.mesh.position.z -= uz * push; other.speed *= 0.3; }
+      return Math.abs(this.speed - other.speed);
+    }
     const dx = this.x - other.x;
     const dz = this.z - other.z;
     const d2 = dx * dx + dz * dz;

@@ -1,6 +1,6 @@
 // Neon Tides — the HUD: health, cash, wanted stars, objective, timer,
-// speedometer, weapon/ammo, interaction prompt, bust meter and phone popups.
-// Plain DOM over the WebGL canvas; the game calls these small setters.
+// speedometer, weapon/ammo, interaction prompt, bust meter, phone popups,
+// and the iter1 additions: a neon-cache counter and a helicopter warning.
 
 export class Hud {
   constructor() {
@@ -18,9 +18,12 @@ export class Hud {
       bust: document.getElementById('bust-fill'),
       bustWrap: document.getElementById('bust-wrap'),
       missionTitle: document.getElementById('mission-title'),
+      caches: document.getElementById('caches'),
+      heli: document.getElementById('heli'),
     };
     this.phoneTimer = null;
     this.lastStars = -1;
+    this.lastCaches = -1;
   }
 
   setHealth(ratio) {
@@ -60,9 +63,23 @@ export class Hud {
     if (visible) this.el.speed.textContent = `${Math.round(kmh)} km/h`;
   }
 
-  setWeapon(ammo, reserve, visible) {
+  setWeapon(name, ammo, reserve, visible) {
     this.el.weapon.style.display = visible ? 'block' : 'none';
-    if (visible) this.el.weapon.textContent = `PISTOL ${ammo} / ${reserve}`;
+    if (visible) this.el.weapon.textContent = `${name} ${ammo} / ${reserve}`;
+  }
+
+  /** Neon-cache counter (activities.js): "Caches 3/10", cyan when complete. */
+  setCaches(found, total) {
+    if (found === this.lastCaches) return;
+    this.lastCaches = found;
+    this.el.caches.textContent = `◆ Caches ${found}/${total}`;
+    this.el.caches.style.color = found >= total ? '#3ddc84' : '#00e5ff';
+  }
+
+  /** Helicopter warning: shown only while the air unit is overhead. */
+  setHeli(active) {
+    this.el.heli.style.display = active ? 'block' : 'none';
+    if (active) this.el.heli.textContent = '🚁 AIR UNIT — stars frozen';
   }
 
   setPrompt(text) {

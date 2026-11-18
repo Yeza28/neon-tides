@@ -12,7 +12,7 @@ import {
 } from './config.js';
 import { Vehicle, forwardOf } from './vehicles.js';
 
-const KINDS = ['coupe', 'hatch', 'truck', 'coupe', 'hatch'];
+const KINDS = ['coupe', 'hatch', 'truck', 'muscle', 'coupe', 'hatch', 'muscle'];
 
 export class TrafficManager {
   constructor(scene) {
@@ -89,6 +89,7 @@ export class TrafficManager {
   update(dt, playerPos, allVehicles, onPedestrianHit) {
     for (const car of this.cars) {
       if (car.driver !== 'traffic') continue; // stolen cars leave the AI pool
+      if (car.wrecked) continue; // wrecks sit where they died, smoking
       const ai = car.ai;
       const f = forwardOf(car.heading);
       // Slow down if something is right ahead.

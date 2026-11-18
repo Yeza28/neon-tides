@@ -1,8 +1,9 @@
 // Neon Tides — main orchestration: renderer, dusk sky, camera, input, the
 // game loop, car entry/theft, crime reporting, BUSTED/WASTED flow, pause and
-// start screens, saving, and the ?shot= screenshot staging. Every system
-// module (city, vehicles, traffic, pedestrians, police, missions, combat,
-// hud, minimap, audio, save) is wired together here.
+// start screens, saving, wrecked cars, and the ?shot= screenshot staging.
+// Every system module (city, vehicles, traffic, pedestrians, police,
+// helicopter, missions, activities, weapons, combat, hud, minimap, audio,
+// save) is wired together here.
 
 import * as THREE from '../vendor/three/three.module.min.js';
 import { PLAYER_MAX_HEALTH, WORLD_LIMIT, clamp } from './config.js';
@@ -13,6 +14,9 @@ import { PedestrianManager } from './pedestrians.js';
 import { Player } from './player.js';
 import { Combat } from './combat.js';
 import { PoliceManager } from './police.js';
+import { PoliceHelicopter } from './helicopter.js';
+import { Activities } from './activities.js';
+import { WeaponCrates } from './weapons.js';
 import { MissionManager, TARGET_CAR_SPOT } from './missions.js';
 import { Hud } from './hud.js';
 import { Minimap } from './minimap.js';
@@ -81,6 +85,9 @@ class Game {
     this.traffic = new TrafficManager(scene);
     this.pedestrians = new PedestrianManager(scene);
     this.police = new PoliceManager(scene, this);
+    this.helicopter = new PoliceHelicopter(scene, this);
+    this.activities = new Activities(scene, this);
+    this.weapons = new WeaponCrates(scene, this);
     this.combat = new Combat(scene, camera, this.audio, this);
     this.missions = new MissionManager(scene, this);
     this.minimap = new Minimap(document.getElementById('minimap'));
@@ -172,14 +179,15 @@ class Game {
   onShotHit(object, point) {
     const owner = this.ownerOf(object);
     if (!owner) return;
+    const dmg = this.combat.weapon.damage; // pistol 34, SMG 22 per bullet
     if (owner.type === 'ped') {
-      owner.ref.damage(34, this);
+      owner.ref.damage(dmg, this);
       this.pedestrians.scareAll(point, 18, 4);
     } else if (owner.type === 'officer') {
-      this.police.damageOfficer(owner.ref, 34);
+      this.police.damageOfficer(owner.ref, dmg);
       this.reportCrime('hitPolice', point, 1200);
     } else if (owner.type === 'car') {
-      owner.ref.health -= 12;
+      owner.ref.health -= Math.round(dmg * 0.4);
       this.combat.particles.burst(point, 0xffaa55, 6, 2.4, 2);
       if (owner.ref.kind === 'police') this.reportCrime('hitPolice', point, 1500);
     }
@@ -247,6 +255,8 @@ class Game {
     this.player.health = PLAYER_MAX_HEALTH;
     if (this.player.inCar) this.exitCar(true);
     this.police.clearWanted();
+    this.helicopter.hide();
+    this.activities.resetFare(); // a fresh run starts with no fare aboard
     for (const car of [...this.police.cars]) this.police.removeCar(car);
     for (const o of [...this.police.officers]) {
       scene.remove(o.mesh);
@@ -255,8 +265,8 @@ class Game {
     this.player.placeAt(-140, 150, 0.6);
     this.state = 'playing';
     document.getElementById('end-screen').style.display = 'none';
-    // Retry the current job from its first step (index 4 = free roam).
-    this.missions.start(Math.min(this.missions.index, 4), false);
+    // Retry the current job from its first step (index 6 = free roam).
+    this.missions.start(Math.min(this.missions.index, 6), false);
     this.hud.setCash(this.cash);
   }
 
@@ -273,6 +283,7 @@ class Game {
     let bestD = 3.4;
     for (const car of this.allVehicles()) {
       if (car.driver === 'police') continue;
+      if (car.wrecked) continue; // wrecks are scenery now, not rides
       const d = Math.hypot(car.x - p.x, car.z - p.z);
       if (d < bestD) { bestD = d; best = car; }
     }
@@ -280,7 +291,7 @@ class Game {
   }
 
   enterCar(car, silent) {
-    if (!car) return;
+    if (!car || car.wrecked) return;
     const wasTraffic = car.driver === 'traffic';
     if (wasTraffic) {
       // The driver bails out and runs.
@@ -342,16 +353,37 @@ class Game {
     this.traffic.parked.push(car);
   }
 
+  /** Health-zero cars become wrecks (vehicles.js): smoke, stop, and if Rook
+   *  was driving, put him on the street. Wrecks near the player keep smoking. */
+  checkWrecks() {
+    const pp = this.playerPos();
+    for (const car of this.allVehicles()) {
+      if (car.health <= 0 && !car.wrecked) {
+        const wasPlayerCar = this.player.inCar === car;
+        car.makeWreck();
+        this.combat.particles.burst(new THREE.Vector3(car.x, 1, car.z), 0x888899, 12, 3, 3);
+        if (wasPlayerCar) {
+          this.exitCar(true);
+          this.hud.showPhone('That car is wrecked — it will not drive again.', 3200);
+        }
+      } else if (car.wrecked && Math.hypot(car.x - pp.x, car.z - pp.z) < 32 && Math.random() < 0.06) {
+        this.combat.particles.smoke(new THREE.Vector3(car.x, 1.2, car.z));
+      }
+    }
+  }
+
   // ---- save / start ----------------------------------------------------------
   saveProgress() {
     const p = this.playerPos();
     writeSave({
       cash: this.cash,
       missionIndex: this.missions.index,
-      missionsDone: this.missions.index >= 4,
+      missionsDone: this.missions.index >= 6,
       x: p.x, z: p.z,
       heading: this.playerHeading(),
       totalEarned: this.cash,
+      cachesCollected: this.activities.cachesCollected,
+      weaponId: this.combat.weaponId,
     });
     this.hud.setCash(this.cash);
   }
@@ -362,6 +394,10 @@ class Game {
     this.player.placeAt(-140, 150, 0.6);
     this.player.health = PLAYER_MAX_HEALTH;
     this.police.clearWanted();
+    this.helicopter.hide();
+    this.activities.reset();
+    this.weapons.reset();
+    this.combat.setWeapon('pistol');
     this.missions.start(0, false);
     this.hud.setCash(this.cash);
     this.hud.setObjective(this.missions.objectiveText());
@@ -374,7 +410,10 @@ class Game {
     this.player.placeAt(data.x, data.z, data.heading);
     this.player.health = PLAYER_MAX_HEALTH;
     this.police.clearWanted();
-    this.missions.start(Math.min(data.missionIndex, 4), false);
+    this.helicopter.hide();
+    this.activities.setCollected(data.cachesCollected || 0);
+    if (data.weaponId === 'smg') this.combat.setWeapon('smg');
+    this.missions.start(Math.min(data.missionIndex, 6), false);
     this.hud.setCash(this.cash);
     this.hud.setObjective(this.missions.objectiveText());
   }
@@ -558,6 +597,11 @@ function updateGame(dt, now) {
     game.traffic.update(dt, pp, vehicles, null);
     game.pedestrians.update(dt, game);
     game.police.update(dt, game.playerPos(), game.playerSpeed(), !!game.player.inCar);
+    // Iter1 systems: helicopter pursuit, side activities, weapon crates.
+    game.helicopter.update(dt, game.playerPos(), game.police.stars);
+    game.activities.update(dt, game.playerPos(), !!game.player.inCar);
+    game.weapons.update(game.playerPos());
+    game.checkWrecks();
     // Car-to-car collisions.
     for (let i = 0; i < vehicles.length; i += 1) {
       for (let j = i + 1; j < vehicles.length; j += 1) {
@@ -596,7 +640,9 @@ function updateGame(dt, now) {
     game.hud.setHealth(game.player.health / PLAYER_MAX_HEALTH);
     game.hud.setStars(game.police.stars);
     game.hud.setBust(game.police.bustMeter);
-    game.hud.setWeapon(game.combat.ammo, game.combat.reserve, !game.player.inCar);
+    game.hud.setWeapon(game.combat.weapon.name, game.combat.ammo, game.combat.reserve, !game.player.inCar);
+    game.hud.setCaches(game.activities.cachesCollected, game.activities.cachesTotal);
+    game.hud.setHeli(game.helicopter.active);
     const near = game.player.inCar ? null : game.nearestEnterable();
     game.hud.setPrompt(game.player.inCar ? 'F — Exit vehicle' : near ? 'E — Enter vehicle' : '');
     // Slow health regen out of trouble.
