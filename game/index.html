@@ -15,6 +15,8 @@
   #timer { font-size: 16px; font-weight: 700; margin-top: 2px; }
   #top-right { position: absolute; top: 14px; right: 14px; padding: 10px 14px; text-align: right; }
   #cash { font-size: 24px; font-weight: 800; color: #3ddc84; }
+  #caches { font-size: 14px; font-weight: 700; color: #00e5ff; margin-top: 2px; }
+  #heli { font-size: 14px; font-weight: 700; color: #ff5566; margin-top: 2px; display: none; }
   #stars { font-size: 22px; letter-spacing: 3px; color: #5a6270; }
   #health-wrap { margin-top: 6px; width: 170px; height: 12px; background: #20242e; border-radius: 6px; overflow: hidden; margin-left: auto; }
   #health-fill { height: 100%; width: 100%; background: #3ddc84; transition: width 0.15s; }
@@ -53,6 +55,8 @@
   </div>
   <div id="top-right" class="panel">
     <div id="cash">$250</div>
+    <div id="caches">◆ Caches 0/10</div>
+    <div id="heli">🚁 AIR UNIT — stars frozen</div>
     <div id="stars">☆☆☆☆☆</div>
     <div id="health-wrap"><div id="health-fill"></div></div>
   </div>
@@ -75,12 +79,14 @@
   <p><b>Port Vireo</b> — a neon coastal city that never dries out. You are <b>Rook</b>, a wheelman
   who owes the fixer <b>Vex</b> more than he can pay. Work the jobs, steal the rides, outrun the
   PVPD, and earn your freedom one delivery at a time.</p>
+  <p id="features-line" style="color:#7de8ff;font-weight:700">6 story jobs • side fares &amp; neon caches • helicopter pursuit • SMG</p>
   <button id="new-game-btn" class="btn">▶ New Game</button>
   <button id="continue-btn" class="btn alt">Continue</button>
   <p class="controls">
     <b>WASD</b> move / drive · <b>Mouse</b> camera (click the game to lock) · <b>Shift</b> sprint ·
     <b>E</b>/<b>F</b> enter car · <b>F</b> exit / punch · <b>Space</b> handbrake<br>
-    <b>Click</b> shoot pistol · <b>R</b> reload · <b>Esc</b> pause — follow the gold marker, mind the stars.
+    <b>Click</b> shoot pistol / SMG · <b>R</b> reload · <b>Esc</b> pause — follow the gold marker, mind the stars.
+    Taxi fares and neon caches pay in free roam; orange crates hold the SMG.
   </p>
 </div>
 

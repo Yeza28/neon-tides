@@ -276,6 +276,21 @@ function buildDocks(group) {
   hut.position.set(CITY_EDGE + 16, 3.1, roadCoord(GRID_MAX) + 10);
   group.add(hut);
   colliders.push({ minX: CITY_EDGE + 11.5, maxX: CITY_EDGE + 20.5, minZ: roadCoord(GRID_MAX) + 6, maxZ: roadCoord(GRID_MAX) + 14 });
+  // Iter1: two harbor cranes over the docks, so the Harbor Run destination
+  // reads as a working port — and the marina ambush site has a landmark.
+  const craneMat = new THREE.MeshLambertMaterial({ color: 0xffd23f });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x30343c });
+  for (const [cx, cz] of [[CITY_EDGE + 8, roadCoord(GRID_MAX) - 18], [CITY_EDGE + 8, roadCoord(-2) - 6]]) {
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(3, 26, 3), craneMat);
+    tower.position.set(cx, 13, cz);
+    group.add(tower);
+    const jib = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 24), darkMat);
+    jib.position.set(cx, 25, cz - 8);
+    group.add(jib);
+    const hook = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), new THREE.MeshLambertMaterial({ color: 0xff2e88 }));
+    hook.position.set(cx, 18, cz - 18);
+    group.add(hook);
+  }
 }
 
 /** Resolve a circle (x,z,radius) out of every building AABB; returns corrected [x,z]. */

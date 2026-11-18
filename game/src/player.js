@@ -27,6 +27,7 @@ export class Player {
     this.health = PLAYER_MAX_HEALTH;
     this.walkPhase = 0;
     this.speedNow = 0;
+    this.stamina = 100; // iter1: sprint drains stamina, walking restores it
     this.inCar = null;
     this.dead = false;
     this.punchCooldown = 0;
@@ -62,7 +63,11 @@ export class Player {
     if (input.l) mx -= 1;
     if (input.r) mx += 1;
     const moving = mx !== 0 || mz !== 0;
-    const speed = input.sprint ? PLAYER_RUN_SPEED : PLAYER_WALK_SPEED;
+    // Sprint only while stamina lasts; it refills while walking or standing.
+    const wantSprint = input.sprint && this.stamina > 0;
+    if (wantSprint && moving) this.stamina = Math.max(0, this.stamina - dt * 18);
+    else this.stamina = Math.min(100, this.stamina + dt * 12);
+    const speed = wantSprint ? PLAYER_RUN_SPEED : PLAYER_WALK_SPEED;
     this.speedNow = moving ? speed : 0;
     if (moving) {
       const len = Math.hypot(mx, mz);

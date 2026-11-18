@@ -1,9 +1,12 @@
-// Neon Tides — the story chain: four jobs for the fixer Vex, then free roam.
+// Neon Tides — the story chain: six jobs for the fixer Vex, then free roam.
 // Rook, an out-of-town wheelman, works off a debt to Vex job by job: a dock
 // pickup, a timed cross-town delivery, stealing the marked "Solace" coupe for
-// a buyer, and a three-star getaway to the beach hideout. Each mission is a
-// list of steps with a glowing world marker, a minimap blip, phone messages
-// from Vex, a cash reward, and fail/retry on timeout, BUSTED or WASTED.
+// a buyer, a marina ambush he has to survive, a five-star harbor run under
+// the police helicopter, and a three-star getaway to the beach hideout. Each
+// mission is a list of steps with a glowing world marker, a minimap blip,
+// phone messages from Vex, a cash reward, and fail/retry on timeout, BUSTED
+// or WASTED. The 'survive' step action (iter1) holds Rook in place against
+// waves of officers until its clock runs out.
 
 import * as THREE from '../vendor/three/three.module.min.js';
 import { BLOCK_PITCH, CITY_EDGE, roadCoord } from './config.js';
@@ -14,6 +17,8 @@ export const DEPOT = { x: roadCoord(-3) + 6, z: roadCoord(-3) + 16 };
 export const MIDTOWN = { x: roadCoord(0) + 12, z: roadCoord(1) + 12 };
 export const TARGET_CAR_SPOT = { x: roadCoord(2) + 10, z: roadCoord(-1) + 14 };
 export const GARAGE = { x: roadCoord(-2) + 12, z: roadCoord(2) + 12 };
+export const MARINA = { x: CITY_EDGE + 14, z: roadCoord(-2) }; // north-east marina, ambush site
+export const NORTH_PIER = { x: roadCoord(1) + 8, z: roadCoord(-3) - 6 };
 
 export const MISSIONS = [
   {
@@ -51,6 +56,29 @@ export const MISSIONS = [
     outro: 'Vex: Buyer is thrilled. You have a gift, Rook. +$900',
   },
   {
+    id: 'ambush',
+    title: 'Marina Ambush',
+    reward: 1100,
+    intro: 'Vex: It was a setup, Rook. The buyer\'s crew is waiting at the marina with badges on their side. Get there, hold the pier for sixty seconds, then run north. Use the SMG crates if you found one.',
+    steps: [
+      { text: 'Reach the marina ambush point', at: MARINA, radius: 7, action: 'reach' },
+      { text: 'Survive the ambush — hold the marina for 60s', at: MARINA, radius: 16, action: 'survive', surviveSeconds: 60 },
+      { text: 'Escape to the north pier', at: NORTH_PIER, radius: 7, action: 'reach' },
+    ],
+    outro: 'Vex: Sixty seconds against the whole marina and you walked out. +$1,100',
+  },
+  {
+    id: 'harbor',
+    title: 'Harbor Run',
+    reward: 1200,
+    intro: 'Vex: One more loud one before the finale. The harbor docks, five stars, the air unit already up. Reach the docks, then lose yourself at the beach hideout. Do not let the helicopter pin you.',
+    steps: [
+      { text: 'Reach the harbor docks with five stars on you', at: DOCKS, radius: 9, action: 'reach', heat: 5 },
+      { text: 'Lose the heat at the beach hideout', at: HIDEOUT, radius: 9, action: 'reach' },
+    ],
+    outro: 'Vex: Five stars and a helicopter, and you still made the docks. +$1,200',
+  },
+  {
     id: 'getaway',
     title: 'Neon Getaway',
     reward: 1400,
@@ -71,6 +99,8 @@ export class MissionManager {
     this.active = false;
     this.done = false;
     this.timeLeft = 0;
+    this.surviveLeft = 0; // countdown for 'survive' steps (ambush)
+    this.surviveSpawnTimer = 0;
     this.targetCar = null;
     // Glowing marker: light beam + ground ring, bobbing in the world.
     this.marker = new THREE.Group();
@@ -122,6 +152,15 @@ export class MissionManager {
     this.marker.visible = true;
     if (step.heat) this.game.police.setWanted(step.heat);
     if (step.action === 'stealTarget') this.game.ensureTargetCar();
+    if (step.action === 'survive') {
+      // Hold the ground: three stars, officers already closing in.
+      this.surviveLeft = step.surviveSeconds || 60;
+      this.surviveSpawnTimer = 0;
+      this.game.police.setWanted(3);
+      this.game.police.spawnOfficerNear(step.at);
+      this.game.police.spawnOfficerNear(step.at);
+      this.game.hud.setTimer(this.surviveLeft);
+    }
     this.game.hud.setObjective(step.text);
   }
 
@@ -141,6 +180,24 @@ export class MissionManager {
       }
     }
     const d = Math.hypot(pos.x - step.at.x, pos.z - step.at.z);
+    if (step.action === 'survive') {
+      // The clock, not the marker, ends this step: keep officers coming
+      // while Rook holds the ground, and fail him if he runs too far.
+      this.surviveLeft -= dt;
+      this.game.hud.setTimer(this.surviveLeft);
+      this.surviveSpawnTimer -= dt;
+      if (this.surviveSpawnTimer <= 0) {
+        this.surviveSpawnTimer = 4;
+        if (this.game.police.officers.length < 4) this.game.police.spawnOfficerNear(step.at);
+      }
+      if (this.surviveLeft <= 0) {
+        this.game.hud.setTimer(-1);
+        this.advance();
+      } else if (d > step.radius + 18) {
+        this.fail('You abandoned the marina. Vex is not pleased.');
+      }
+      return;
+    }
     if (step.action === 'reach' && d < step.radius) this.advance();
     else if (step.action === 'stealTarget' && inTargetCar) this.advance();
     else if (step.action === 'deliverTarget' && inTargetCar && d < step.radius) this.advance();

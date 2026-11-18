@@ -1,13 +1,13 @@
-// Neon Tides — combat: Rook's pistol, punches, particles and screen shake.
+// Neon Tides — combat: Rook's pistol and SMG, punches, particles and shake.
 // Shooting is a hitscan ray from the camera through the crosshair: muzzle flash,
 // a tracer line, spark bursts on impact, WebAudio gunshot, pedestrians and
-// police take damage and fall. Firing in public is a crime: the game raises
-// the wanted level and nearby pedestrians flee.
+// police take damage and fall. The current weapon comes from weapons.js — the
+// pistol by default, the SMG after Rook picks up a crate — and its fire rate,
+// magazine, range and damage drive every shot. Firing in public is a crime:
+// the game raises the wanted level and nearby pedestrians flee.
 
 import * as THREE from '../vendor/three/three.module.min.js';
-import {
-  PISTOL_DAMAGE, PISTOL_MAGAZINE, PISTOL_RESERVE_START, PISTOL_FIRE_MS, PISTOL_RANGE,
-} from './config.js';
+import { WEAPONS } from './weapons.js';
 
 export class ParticleBurst {
   constructor(scene) {
@@ -57,13 +57,16 @@ export class Combat {
     this.camera = camera;
     this.audio = audio;
     this.game = game;
-    this.ammo = PISTOL_MAGAZINE;
-    this.reserve = PISTOL_RESERVE_START;
+    this.weaponId = 'pistol';
+    this.weapon = WEAPONS.pistol;
+    this.ammo = this.weapon.magazine;
+    this.reserve = this.weapon.reserveStart;
     this.lastShot = 0;
     this.reloadingUntil = 0;
+    this.stagedTarget = null; // screenshot staging: a fixed muzzle-flash target
     this.particles = new ParticleBurst(scene);
     this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = PISTOL_RANGE;
+    this.raycaster.far = this.weapon.range;
     // Muzzle flash: a small additive plane + point light at the gun.
     this.flash = new THREE.Mesh(
       new THREE.PlaneGeometry(0.5, 0.5),
@@ -79,6 +82,24 @@ export class Combat {
 
   addShake(amount) { this.shake = Math.min(1.2, this.shake + amount); }
 
+  /** Swap weapons (weapons.js crates call this for the SMG): fresh mag, and
+   *  the SMG tops the reserve up to its own starting stock. */
+  setWeapon(id) {
+    const def = WEAPONS[id] || WEAPONS.pistol;
+    this.weaponId = def.id;
+    this.weapon = def;
+    this.ammo = def.magazine;
+    this.reserve = Math.max(this.reserve, def.reserveStart);
+    this.reloadingUntil = 0;
+  }
+
+  /** Screenshot staging: hold a muzzle flash + tracer on a fixed target for
+   *  a minute, re-aimed from the live camera every frame (see update). */
+  stageMuzzleFlash(targetPos) {
+    this.stagedTarget = targetPos.clone();
+    this.flashUntil = performance.now() + 60000;
+  }
+
   shakeOffset() {
     if (this.shake <= 0.001) return { x: 0, y: 0 };
     this.shake *= 0.88;
@@ -86,8 +107,8 @@ export class Combat {
   }
 
   tryReload(now) {
-    if (this.ammo >= PISTOL_MAGAZINE || this.reserve <= 0 || now < this.reloadingUntil) return;
-    const take = Math.min(PISTOL_MAGAZINE - this.ammo, this.reserve);
+    if (this.ammo >= this.weapon.magazine || this.reserve <= 0 || now < this.reloadingUntil) return;
+    const take = Math.min(this.weapon.magazine - this.ammo, this.reserve);
     this.reloadingUntil = now + 900;
     setTimeout(() => {
       this.ammo += take;
@@ -98,7 +119,7 @@ export class Combat {
 
   /** Fire one shot from the camera centre. originPos = shooter's world position. */
   shoot(now, originPos) {
-    if (now - this.lastShot < PISTOL_FIRE_MS || now < this.reloadingUntil) return false;
+    if (now - this.lastShot < this.weapon.fireMs || now < this.reloadingUntil) return false;
     if (this.ammo <= 0) {
       this.tryReload(now);
       return false;
@@ -111,10 +132,11 @@ export class Combat {
     this.camera.getWorldDirection(dir);
     const origin = this.camera.position.clone();
     this.raycaster.set(origin, dir);
+    this.raycaster.far = this.weapon.range;
     // Candidate targets: pedestrian meshes, police, cars.
     const targets = this.game.shootableMeshes();
     const hits = this.raycaster.intersectObjects(targets, true);
-    let end = origin.clone().addScaledVector(dir, PISTOL_RANGE);
+    let end = origin.clone().addScaledVector(dir, this.weapon.range);
     if (hits.length > 0) {
       end = hits[0].point.clone();
       this.game.onShotHit(hits[0].object, end);
@@ -148,7 +170,23 @@ export class Combat {
   }
 
   update(now) {
+    if (this.stagedTarget && now < this.flashUntil) {
+      // Re-aim the staged flash/tracer from the live camera each frame, so
+      // the combat screenshot shows the shot even after the camera settles.
+      const dir = new THREE.Vector3();
+      this.camera.getWorldDirection(dir);
+      const origin = this.camera.position.clone();
+      const muzzle = origin.clone().addScaledVector(dir, 1.1);
+      muzzle.y -= 0.18;
+      this.flash.position.copy(muzzle);
+      this.flash.lookAt(this.stagedTarget);
+      this.flash.material.opacity = 0.95;
+      this.tracer.geometry.setFromPoints([muzzle, this.stagedTarget]);
+      this.tracer.material.opacity = 0.85;
+      return;
+    }
     if (now > this.flashUntil) {
+      this.stagedTarget = null;
       this.flash.material.opacity = 0;
       this.tracer.material.opacity = 0;
     }
