@@ -17,6 +17,9 @@ export const CAR_KINDS = {
   truck: { w: 2.1, l: 5.4, h: 0.95, cabinL: 1.4, topSpeed: 0.72 },
   // Iter1: the muscle car — wider body, rear spoiler, near-coupe top speed.
   muscle: { w: 2.05, l: 4.7, h: 0.58, cabinL: 1.9, topSpeed: 0.97 },
+  // Iter2: sport — low, wide, fastest in the city; van — tall box, slowest.
+  sport: { w: 2.0, l: 4.6, h: 0.5, cabinL: 1.7, topSpeed: 1.08 },
+  van: { w: 2.0, l: 5.0, h: 1.1, cabinL: 3.2, topSpeed: 0.68 },
   police: { w: 1.95, l: 4.6, h: 0.66, cabinL: 2.1, topSpeed: 1.06 },
 };
 
@@ -36,6 +39,32 @@ export function createCarMesh(kind, colorHex) {
     const bed = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.94, 0.5, 2.6), dark);
     bed.position.set(0, body.position.y + 0.3, 1.2);
     group.add(bed);
+  }
+  if (kind === 'sport') {
+    // Slim rear wing + long low hood scoop: the fastest silhouette in town.
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.9, 0.08, 0.34), dark);
+    wing.position.set(0, body.position.y + spec.h / 2 + 0.36, spec.l / 2 - 0.3);
+    group.add(wing);
+    for (const side of [-1, 1]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.36, 0.08), dark);
+      strut.position.set(side * spec.w * 0.34, body.position.y + spec.h / 2 + 0.17, spec.l / 2 - 0.3);
+      group.add(strut);
+    }
+    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 1.6), dark);
+    scoop.position.set(0, body.position.y + spec.h / 2 + 0.04, -spec.l / 2 + 1.2);
+    group.add(scoop);
+  }
+  if (kind === 'van') {
+    // Sliding-door stripe + roof rack on the tall box body.
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.3, spec.l * 0.7), new THREE.MeshLambertMaterial({ color: 0xe8e8ec }));
+    stripe.position.set(spec.w / 2 + 0.01, body.position.y + 0.1, 0.2);
+    group.add(stripe);
+    const stripe2 = stripe.clone();
+    stripe2.position.x = -spec.w / 2 - 0.01;
+    group.add(stripe2);
+    const rack = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.7, 0.1, 2.2), dark);
+    rack.position.set(0, body.position.y + spec.h / 2 + 0.55, 0.3);
+    group.add(rack);
   }
   if (kind === 'muscle') {
     // Rear spoiler on two struts, plus a hood scoop for the muscle look.

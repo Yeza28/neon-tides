@@ -75,6 +75,8 @@ export class Minimap {
       if (game.activities.fareState === 'riding' && game.activities.fareDest) dot(game.activities.fareDest.x, game.activities.fareDest.z, '#3ddc84', 3.5);
     }
     if (game.weapons) for (const crate of game.weapons.crates) if (!crate.taken) dot(crate.x, crate.z, '#ff8c42', 2.5);
+    // Iter2: pay-n-spray garage blip (magenta).
+    if (game.garage) dot(game.garage.x, game.garage.z, '#ff2e88', 3.5);
     if (game.helicopter && game.helicopter.active) {
       const hp = game.helicopter.pos;
       dot(hp.x, hp.z, '#ffffff', 4);

@@ -20,6 +20,7 @@ export class Hud {
       missionTitle: document.getElementById('mission-title'),
       caches: document.getElementById('caches'),
       heli: document.getElementById('heli'),
+      clock: document.getElementById('clock'),
     };
     this.phoneTimer = null;
     this.lastStars = -1;
@@ -33,6 +34,11 @@ export class Hud {
 
   setCash(amount) {
     this.el.cash.textContent = `$${amount.toLocaleString('en-US')}`;
+  }
+
+  /** Iter2 day/night clock ("17:30"), shown under the cash line. */
+  setClock(str) {
+    if (this.el.clock) this.el.clock.textContent = `🕔 ${str}`;
   }
 
   setStars(stars) {

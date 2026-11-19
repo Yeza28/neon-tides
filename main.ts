@@ -2,6 +2,9 @@
 // Iter1 (2026-11-18): six story jobs, police helicopter pursuit, taxi fares and
 // neon caches, the SMG and weapon crates, a muscle car, and wrecked cars —
 // see game/src/helicopter.js, activities.js and weapons.js for the new systems.
+// Iter2 (2026-11-19): day/night cycle, pay-n-spray garage, sport + van cars,
+// and neon polish (lamp glow, rooftop billboards, wet-road sheen) —
+// see game/src/daynight.js, garage.js, city.js and vehicles.js.
 // The game is this directory's game/ folder: plain static files a desktop browser loads offline
 // The game is this directory's game/ folder: plain static files a desktop browser loads offline
 // (game/index.html and its ES modules, three.js vendored under game/vendor/, no network request).

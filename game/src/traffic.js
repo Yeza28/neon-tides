@@ -12,7 +12,7 @@ import {
 } from './config.js';
 import { Vehicle, forwardOf } from './vehicles.js';
 
-const KINDS = ['coupe', 'hatch', 'truck', 'muscle', 'coupe', 'hatch', 'muscle'];
+const KINDS = ['coupe', 'hatch', 'truck', 'muscle', 'sport', 'van', 'coupe', 'hatch', 'muscle', 'sport'];
 
 export class TrafficManager {
   constructor(scene) {

@@ -65,7 +65,7 @@ function makeRoadTexture() {
   return tex;
 }
 
-const SIGN_WORDS = ['TIDES', 'HOTEL LUMA', 'RAMEN', 'VIREO BAY', 'CLUB NOVA', 'PIER 9', 'CASINO SOL', 'BAR MAREA', 'TACO SUR', 'HOTEL REEF', 'DISCO LUNA', 'SURF SHOP'];
+const SIGN_WORDS = ['TIDES', 'HOTEL LUMA', 'RAMEN', 'VIREO BAY', 'CLUB NOVA', 'PIER 9', 'CASINO SOL', 'BAR MAREA', 'TACO SUR', 'HOTEL REEF', 'DISCO LUNA', 'SURF SHOP', 'NEON TIDES', 'SPRAY SHOP', 'HOTEL AZUL', 'KARAOKE', 'BODEGA 24', 'TATTOO INK'];
 const BUILDING_BASES = ['#3a4152', '#4a3f4d', '#2f3e4d', '#51463a', '#3d3550', '#2e4a44', '#5a4250', '#39435c'];
 
 export function buildCity(scene) {
@@ -100,9 +100,10 @@ export function buildCity(scene) {
   ocean.name = 'ocean';
   group.add(ocean);
 
-  // Roads: dark strips along every grid line, both directions.
+  // Roads: dark strips along every grid line, both directions. Iter2: a
+  // Phong road so headlights and neon read as a wet dusk street.
   const roadTex = makeRoadTexture();
-  const roadMat = new THREE.MeshLambertMaterial({ map: roadTex, color: 0xffffff });
+  const roadMat = new THREE.MeshPhongMaterial({ map: roadTex, color: 0xffffff, shininess: 60, specular: 0x334455 });
   const roadLen = (GRID_MAX - GRID_MIN) * BLOCK_PITCH + ROAD_HALF * 4;
   for (let i = GRID_MIN; i <= GRID_MAX; i += 1) {
     const at = roadCoord(i);
@@ -159,6 +160,7 @@ export function buildCity(scene) {
   // Buildings: one or two per block, varied height, lit windows, rooftop neon.
   const signMats = [];
   let signIndex = 0;
+  const tallest = []; // iter2: rooftop billboards go on the tallest towers
   for (let bx = GRID_MIN; bx < GRID_MAX; bx += 1) {
     for (let bz = GRID_MIN; bz < GRID_MAX; bz += 1) {
       const cx = roadCoord(bx) + BLOCK_PITCH / 2;
@@ -168,6 +170,7 @@ export function buildCity(scene) {
       const w = 20 + rng() * 12;
       const d = 20 + rng() * 12;
       const h = nearDock ? 6 + rng() * 5 : 12 + rng() * rng() * 46;
+      if (h > 34) tallest.push({ x: cx, z: cz, h, w, d });
       const base = BUILDING_BASES[Math.floor(rng() * BUILDING_BASES.length)];
       const tex = makeWindowTexture(rng, base, 0.42);
       const mat = new THREE.MeshLambertMaterial({ map: tex });
@@ -204,10 +207,27 @@ export function buildCity(scene) {
   }
 
   if (group.userData.dashMesh) group.userData.dashMesh.count = group.userData.dashMesh.userData.next;
-  buildPalmsAndLights(group, rng);
+  // Iter2: large rooftop billboards on the three tallest towers.
+  tallest.sort((a, b) => b.h - a.h);
+  const billboardWords = ['NEON TIDES', 'CASINO SOL', 'CLUB NOVA'];
+  for (let i = 0; i < Math.min(3, tallest.length); i += 1) {
+    const t = tallest[i];
+    const css = `#${NEON_COLORS[i % NEON_COLORS.length].toString(16).padStart(6, '0')}`;
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 5),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture(billboardWords[i], css) }),
+    );
+    board.position.set(t.x, t.h + 3.4, t.z + t.d / 2 + 0.2);
+    group.add(board);
+    const boardBack = board.clone();
+    boardBack.rotation.y = Math.PI;
+    boardBack.position.z = t.z - t.d / 2 - 0.2;
+    group.add(boardBack);
+  }
+  const lampGlowMat = buildPalmsAndLights(group, rng);
   buildBeachProps(group, rng);
   buildDocks(group);
-  return { ocean, group };
+  return { ocean, group, lampGlowMat };
 }
 
 function buildPalmsAndLights(group, rng) {
@@ -215,6 +235,19 @@ function buildPalmsAndLights(group, rng) {
   const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e9e5b });
   const poleMat = new THREE.MeshLambertMaterial({ color: 0x30343c });
   const lampMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8 });
+  // Iter2: one shared radial-glow material for every lamp; day/night sets
+  // its opacity globally, so the lamps visibly switch on after dark.
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = 64; glowCanvas.height = 64;
+  const gg = glowCanvas.getContext('2d');
+  const grad = gg.createRadialGradient(32, 32, 2, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,233,168,0.9)');
+  grad.addColorStop(0.4, 'rgba(255,233,168,0.28)');
+  grad.addColorStop(1, 'rgba(255,233,168,0)');
+  gg.fillStyle = grad;
+  gg.fillRect(0, 0, 64, 64);
+  const glowTex = new THREE.CanvasTexture(glowCanvas);
+  const lampGlowMat = new THREE.SpriteMaterial({ map: glowTex, color: 0xffe9a8, transparent: true, opacity: 0, depthWrite: false });
   for (let i = GRID_MIN; i <= GRID_MAX; i += 1) {
     for (let s = -3; s <= 3; s += 1) {
       const along = s * 44 + (rng() - 0.5) * 8;
@@ -244,8 +277,13 @@ function buildPalmsAndLights(group, rng) {
       const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.34, 8, 6), lampMat);
       lamp.position.set(roadCoord(i) - ROAD_HALF - 1.2, 6.5, along + 20);
       group.add(lamp);
+      const glow = new THREE.Sprite(lampGlowMat);
+      glow.scale.set(7, 7, 1);
+      glow.position.copy(lamp.position);
+      group.add(glow);
     }
   }
+  return lampGlowMat;
 }
 
 function buildBeachProps(group, rng) {

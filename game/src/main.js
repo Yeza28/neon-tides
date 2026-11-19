@@ -18,6 +18,8 @@ import { PoliceHelicopter } from './helicopter.js';
 import { Activities } from './activities.js';
 import { WeaponCrates } from './weapons.js';
 import { MissionManager, TARGET_CAR_SPOT } from './missions.js';
+import { DayNight } from './daynight.js';
+import { Garage } from './garage.js';
 import { Hud } from './hud.js';
 import { Minimap } from './minimap.js';
 import { AudioEngine } from './audio.js';
@@ -37,27 +39,8 @@ scene.fog = new THREE.Fog(0x8a5f74, 120, 430);
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
 camera.position.set(-150, 8, 165);
 
-// Gradient sky dome: violet zenith melting into a tangerine horizon.
-{
-  const c = document.createElement('canvas');
-  c.width = 4; c.height = 256;
-  const g = c.getContext('2d');
-  const grad = g.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#2c1e4f');
-  grad.addColorStop(0.45, '#6b4472');
-  grad.addColorStop(0.72, '#c65d7b');
-  grad.addColorStop(0.92, '#ff9a3d');
-  grad.addColorStop(1, '#ffc46b');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 4, 256);
-  const skyTex = new THREE.CanvasTexture(c);
-  skyTex.colorSpace = THREE.SRGBColorSpace;
-  const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(700, 20, 14),
-    new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
-  );
-  scene.add(sky);
-}
+// Iter2: the day/night cycle (daynight.js) owns the sky dome, sun disc and
+// moon disc; the lights below are passed in and driven per frame.
 
 const hemi = new THREE.HemisphereLight(0xffe3c0, 0x3a3048, 1.35);
 scene.add(hemi);
@@ -67,20 +50,13 @@ scene.add(sun);
 const neonGlow = new THREE.AmbientLight(0x8a6aa8, 0.85);
 scene.add(neonGlow);
 
-// Setting sun disc + gradient sky band on the eastern horizon.
-const sunSprite = new THREE.Mesh(
-  new THREE.CircleGeometry(26, 24),
-  new THREE.MeshBasicMaterial({ color: 0xff9a3d, fog: false }),
-);
-sunSprite.position.set(420, 34, -80);
-sunSprite.lookAt(0, 20, 0);
-scene.add(sunSprite);
-
 class Game {
   constructor() {
     this.audio = new AudioEngine();
     this.hud = new Hud();
     this.city = buildCity(scene);
+    this.daynight = new DayNight(scene, { sun, hemi, ambient: neonGlow, glowMat: this.city.lampGlowMat });
+    this.garage = new Garage(scene, this);
     this.player = new Player(scene);
     this.traffic = new TrafficManager(scene);
     this.pedestrians = new PedestrianManager(scene);
@@ -493,7 +469,11 @@ window.addEventListener('keydown', (e) => {
   game.keys[e.code] = true;
   if (game.state === 'playing') {
     if (e.code === 'KeyE' || e.code === 'KeyF') {
-      if (game.player.inCar) game.exitCar(false);
+      // Iter2: E in the spray bay (while driving, wanted) starts a respray
+      // instead of exiting the car.
+      if (e.code === 'KeyE' && game.player.inCar && game.garage.canUse()) {
+        game.garage.startSpray();
+      } else if (game.player.inCar) game.exitCar(false);
       else if (game.nearestEnterable()) game.enterCar(game.nearestEnterable(), false);
       else if (e.code === 'KeyF') game.combat.punch(game); // F punches only with no car in reach
     }
@@ -574,6 +554,10 @@ function updateGame(dt, now) {
   game.elapsed += dt;
   const playing = game.state === 'playing';
   const pp = game.playerPos();
+  // Iter2: the clock always advances while the game runs (menu included,
+  // so the start screen sits over a living sky); the HUD clock reads it.
+  game.daynight.update(dt);
+  game.hud.setClock(game.daynight.timeString());
 
   if (playing) {
     // Player: on foot or driving.
@@ -601,6 +585,8 @@ function updateGame(dt, now) {
     game.helicopter.update(dt, game.playerPos(), game.police.stars);
     game.activities.update(dt, game.playerPos(), !!game.player.inCar);
     game.weapons.update(game.playerPos());
+    // Iter2: pay-n-spray garage (bay state + spray timer).
+    game.garage.update(dt, game.playerPos(), !!game.player.inCar);
     game.checkWrecks();
     // Car-to-car collisions.
     for (let i = 0; i < vehicles.length; i += 1) {
@@ -644,7 +630,8 @@ function updateGame(dt, now) {
     game.hud.setCaches(game.activities.cachesCollected, game.activities.cachesTotal);
     game.hud.setHeli(game.helicopter.active);
     const near = game.player.inCar ? null : game.nearestEnterable();
-    game.hud.setPrompt(game.player.inCar ? 'F — Exit vehicle' : near ? 'E — Enter vehicle' : '');
+    const garagePrompt = game.garage.getPrompt();
+    game.hud.setPrompt(garagePrompt || (game.player.inCar ? 'F — Exit vehicle' : near ? 'E — Enter vehicle' : ''));
     // Slow health regen out of trouble.
     game.regenTimer += dt;
     if (game.regenTimer > 4 && game.police.stars === 0 && game.player.health > 0) {
@@ -679,7 +666,7 @@ function updateGame(dt, now) {
     const car = game.player.inCar;
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
-    game.headlight.intensity = 900;
+    game.headlight.intensity = Math.round(900 * game.daynight.headlightFactor());
     game.headlight.position.set(car.x + fx * 2, 1.1, car.z + fz * 2);
     game.headlightTarget.position.set(car.x + fx * 20, 0, car.z + fz * 20);
   } else {

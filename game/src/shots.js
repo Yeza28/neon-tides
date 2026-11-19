@@ -34,6 +34,9 @@ export function stageShot(game, name) {
     // Iter1 combat scene: the Marina Ambush — Rook on foot at the marina,
     // firing at three closing officers, muzzle flash and tracer held on the
     // lead officer, the gold mission beam and the harbor cranes behind.
+    // Iter2: staged at golden hour (17:30, the default) — dusk staging
+    // made this beach scene too dark; the sun disc reads better here.
+    game.daynight.setTime(17.5);
     game.missions.start(3, true);
     player.placeAt(MARINA.x - 8, MARINA.z + 6, -0.98);
     game.camYaw = -0.98;
@@ -59,6 +62,8 @@ export function stageShot(game, name) {
     // overhead with its searchlight on him, interceptors right behind. The
     // camera sits ahead of Rook's car looking back, so the frame holds the
     // player car, the helicopter beam, the flashing pursuit and the avenue.
+    // Iter2: staged at night (21:00) — searchlight and lightbars pop.
+    game.daynight.setTime(21);
     const car = game.traffic.cars[0] || game.traffic.parked[0];
     car.mesh.position.set(-56, 0, 30);
     car.heading = Math.PI; // facing +Z along the avenue
@@ -103,7 +108,16 @@ export function stageShot(game, name) {
     return 1.7;
   }
   // drive (the cover): golden-hour cruise down the neon avenue with dense traffic.
-  const car = game.traffic.cars[1] || game.traffic.cars[0];
+  // Iter2: staged at night (20:00) in the new sport car — neon, headlights
+  // and lit windows read at a glance. Prefer a sport car from the traffic
+  // pool when one spawned; otherwise take the usual cover car.
+  game.daynight.setTime(20);
+  const sportCar = game.traffic.cars.find((c) => c.kind === 'sport')
+    || game.traffic.parked.find((c) => c.kind === 'sport');
+  const car = sportCar || game.traffic.cars[1] || game.traffic.cars[0];
+  // Repaint the cover car hot magenta: at night a dark paint reads as a
+  // black blob from behind, while the Solace magenta pops against the road.
+  car.mesh.children[0].material.color.setHex(0xff2e88);
   car.mesh.position.set(0, 0, 84);
   car.heading = Math.PI;
   car.speed = 11;
